@@ -66,7 +66,7 @@ class DspaceClient {
 				size: fileStat.size,
 				uploadedAt: this.getUniqueDateTimeLabel(),
 				modifiedAt: this.getUniqueDateTimeLabel()
-			}
+			};
 
 			let formData = new FormData();
 			formData.append('file', fs.createReadStream(localPath));
@@ -103,7 +103,7 @@ class DspaceClient {
 				jobId: uuidv4(),
 				name: path.basename(folderPath),
 				type: "directory",
-				path: folderPath,
+				path: `root\\${path.basename(folderPath)}`,
 				uploadedAt: this.getUniqueDateTimeLabel(),
 				modifiedAt: this.getUniqueDateTimeLabel(),
 				children: directoryStructureChildren
@@ -136,45 +136,55 @@ class DspaceClient {
 		}
 	}
 
-	async uploadFolderToJob() {
-		//coming soon
-	}
-
-	async retrieveObject(identifier, destPath) {
+	async getDirectoryStructure(directoryPath, filePaths) {
 		try {
-			destPath = this.removeTrailingSlashes(path.normalize(destPath));
-
-			const data = JSON.stringify({
-				identifier: identifier
-			});
-
-			const endpointUrl = url.resolve(this.serverBaseUrl, "/retrieve");
-
-			let config = {
-				method: 'post',
-				maxBodyLength: Infinity,
-				url: endpointUrl,
-				headers: {
-					'Content-Type': 'application/json',
-					'Cookie': 'csrftoken=buSBxjeHrpiVmTueQVfY8IxbyW9uDMmB'
-				},
-				data: data
-			};
-
-			const response = await axios.request(config);
-			await this.saveFile(response.data.file.buffer, destPath, response.data.file.name);
+			directoryPath = this.removeTrailingSlashes(path.normalize(directoryPath));
+			const baseDirName = path.resolve(directoryPath); // Get the absolute path of the base directory
+			const baseDirNameNormalized = baseDirName.replace(/[\/\\]+$/, ''); // Remove trailing slashes
+			const objects = await fs.promises.readdir(directoryPath);
+			let memberObjects = [];
+	
+			for (const objectName of objects) {
+				const objectPath = path.join(directoryPath, objectName);
+				const objectStat = await fs.promises.stat(objectPath);
+	
+				// Construct relative path from base directory
+				const relativePath = path.relative(baseDirNameNormalized, objectPath);
+				const formattedPath = `root\\${relativePath.replace(/\//g, '\\')}`; // Use double backslashes for Windows-style paths
+	
+				const record = {
+					name: objectName,
+					type: objectStat.isDirectory() ? 'directory' : 'file',
+					path: formattedPath,
+					uploadedAt: this.getUniqueDateTimeLabel(),
+					modifiedAt: this.getUniqueDateTimeLabel()
+				};
+	
+				if (!objectStat.isDirectory()) {
+					record.size = objectStat.size;
+				}
+	
+				if (objectStat.isDirectory()) {
+					const childStructure = await this.getDirectoryStructure(objectPath, filePaths);
+					record.children = childStructure;
+				} else {
+					filePaths.push(objectPath);
+				}
+	
+				memberObjects.push(record);
+			}
+	
+			return memberObjects;
 		} catch (error) {
-			console.error('Could not retrieve object:', error);
+			console.error('Could not get directory structure:', error);
 			throw error;
 		}
 	}
+	
+	
 
-	async deleteObject(identifier) {
-		// Implementation for deleting an object
-	}
-
-	async renameObject(identifier, newName) {
-		// Implementation for renaming an object
+	removeTrailingSlashes(path) {
+		return path.replace(/[\/\\]+$/, '');
 	}
 
 	getUniqueDateTimeLabel() {
@@ -189,64 +199,21 @@ class DspaceClient {
 		return `${day}${month}${year}${hours}${minutes}${seconds}${milliseconds}`;
 	}
 
-	async getDirectoryStructure(directoryPath, filePaths) {
-		try {
-			directoryPath = this.removeTrailingSlashes(path.normalize(directoryPath));
-			const objects = await fs.promises.readdir(directoryPath);
-			let memberObjects = [];
-
-			for (const objectName of objects) {
-				const objectPath = path.join(directoryPath, objectName);
-				const objectStat = await fs.promises.stat(objectPath);
-				const record = {
-					name: objectName,
-					type: objectStat.isDirectory() ? 'directory' : 'file',
-					path: objectPath,
-					uploadedAt: this.getUniqueDateTimeLabel(),
-					modifiedAt: this.getUniqueDateTimeLabel()
-				};
-
-				if (!objectStat.isDirectory()) {
-					record.size = objectStat.size;
-				}
-
-				if (objectStat.isDirectory()) {
-					const childStructure = await this.getDirectoryStructure(objectPath, files);
-					record.children = childStructure;
-				} else {
-					filePaths.push(objectPath);
-				}
-
-				memberObjects.push(record);
-			}
-
-			return memberObjects;
-		} catch (error) {
-			console.error('Could not get directory structure:', error);
-			throw error;
-		}
-	}
-
-	removeTrailingSlashes(path) {
-		return path.replace(/[\/\\]+$/, '');
-	}
-
 	async saveFile(buffer, destPath, fileName) {
 		try {
 			const filePath = path.join(destPath, fileName);
-			await fs.promises.writeFile(filePath, buffer, {
-				encoding: 'base64'
-			});
+			await fs.promises.writeFile(filePath, buffer);
 		} catch (error) {
-			console.error("Could not save the retrived file: ", error)
+			console.error("Could not save the retrieved file: ", error)
 			throw error;
 		}
 	}
 }
+
 async function main() {
 	try {
 		const client = new DspaceClient();
-        //test code
+        await client.uploadFolder("C:/Users/MI/Desktop/Dspace/testing directory");
 	} catch (error) {
 		console.error('Error:', error);
 	}
