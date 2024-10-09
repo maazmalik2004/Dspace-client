@@ -76,7 +76,17 @@ class DspaceClient {
             
             const response = await axios.get(url, { responseType: 'arraybuffer' });
 
-            const downladPath = "C:\\Users\\MI\\Desktop\\Dspace\\Dpace client\\downloads";
+            const contentDisposition = response.headers['content-disposition'];
+            let filename = "default";
+            if (contentDisposition && contentDisposition.indexOf('filename=') !== -1) {
+                const matches = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/.exec(contentDisposition);
+                if (matches != null && matches[1]) {
+                    filename = matches[1].replace(/['"]/g, ''); // Remove quotes
+                }
+            }
+
+            const downloadPath = path.join("C:\\Users\\MI\\Desktop\\Dspace\\Dpace client\\downloads",filename);
+            fs.writeFile(downloadPath, response.data);
         } catch (error) {
             console.error("Error in retrieve()", error);
         }
@@ -110,7 +120,7 @@ class DspaceClient {
             const childrenStructure = await this.generateChildrenStructure(localPath, remotePath, filePaths);
 
             return {
-                id: uuid(),
+                id:uuid(),
                 name: path.basename(localPath),
                 type: 'directory',
                 path: remotePath,
@@ -132,7 +142,7 @@ class DspaceClient {
                 const currentPath = path.join(parentPath, itemName);
 
                 const itemRecord = {
-                    id: uuid(),
+                    id:uuid(),
                     name: itemName,
                     type: itemStat.isDirectory() ? 'directory' : 'file',
                     path: currentPath,
@@ -171,7 +181,7 @@ const remotePath = "meow\\bark\\choco\\testing directory";
         //const structure = await client.getDirectoryStructure(localPath, remotePath);
         //console.log(JSON.stringify(structure, null, 2));
         //await client.delete("fb1f2586-6d16-4ef5-821f-07e897641a48");
-        await client.retrieve("894440eb-d195-422b-9926-571142b5265c");
+        //await client.retrieve("9dd5ca9a-2281-421f-810d-d75bb7b34a66");
     } catch (err) {
         console.error('Test failed', err);
     }
