@@ -182,6 +182,7 @@ const remotePath = "meow\\bark\\choco\\testing directory";
         //console.log(JSON.stringify(structure, null, 2));
         //await client.delete("fb1f2586-6d16-4ef5-821f-07e897641a48");
         //await client.retrieve("9dd5ca9a-2281-421f-810d-d75bb7b34a66");
+        await client.getUserDirectory("0ac453b6-3e18-4ea2-a3d5-0c2f229c2dd0");
     } catch (err) {
         console.error('Test failed', err);
     }
