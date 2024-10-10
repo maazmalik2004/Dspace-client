@@ -13,8 +13,8 @@ class DspaceClient {
 
     async upload(localPath, remotePath) {
         try {
-            localPath = this.normalizePath(localPath);
-            remotePath = this.normalizePath(remotePath);
+            //localPath = this.#normalizePath(localPath);
+            //remotePath = this.#normalizePath(remotePath);
 
             console.log("remote",remotePath);
             console.log("local",localPath);
@@ -27,7 +27,7 @@ class DspaceClient {
             }
 
             const form = new FormData();
-            const url = `${this.serverBaseUrl}/upload`;
+            const url = urljoin(this.serverBaseUrl,"/upload");
 
             //handling a file upload
             if (stat.isFile()) {
@@ -45,11 +45,13 @@ class DspaceClient {
                 form.append("files", fileStream, path.basename(localPath));
 
             }//handling a folder upload
+            //need to be modified to handle large files which cause multer issues on backend.
+            //solution : we send each file individually with its file record. each record will be recursively inserted into the directory structure hence forming the complete directory structure naturally
             else if (stat.isDirectory()) {
                 let filePaths = [];
                 //we are adding the file paths while generating the directory structure
                 //todo : maybe we can add file identifiers that correspond with the file to differentiate items with the same name at the same path
-                const directoryStructure = await this.getDirectoryStructure(localPath, remotePath, filePaths);
+                const directoryStructure = await this.#getDirectoryStructure(localPath, remotePath, filePaths);
 
                 form.append("directoryStructure",JSON.stringify(directoryStructure));
 
@@ -59,20 +61,22 @@ class DspaceClient {
             } else {
                 throw new Error("Provided path is neither a file nor a folder");
             }
-
+            
             const response = await axios.post(url, form, {
                 headers: {
                     ...form.getHeaders()
-                }
+                },
+                maxContentLength: Infinity,
+                maxBodyLength: Infinity
             });
 
             if (!response) {
                 throw new Error("Failed to reach server");
             }
 
-            console.log(response.data);
+            console.log("Resource uploaded successfully",response.data);
         } catch (error) {
-            console.error("Error in upload()", error);
+            this.#error("Error in upload()", error);
         }
     }
 
@@ -87,14 +91,17 @@ class DspaceClient {
             if (contentDisposition && contentDisposition.indexOf('filename=') !== -1) {
                 const matches = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/.exec(contentDisposition);
                 if (matches != null && matches[1]) {
-                    filename = matches[1].replace(/['"]/g, ''); // Remove quotes
+                    filename = matches[1].replace(/['"]/g, '');
                 }
             }
 
+            //remember to modify this path
             const downloadPath = path.join("C:\\Users\\MI\\Desktop\\Dspace\\Dpace client\\downloads",filename);
             fs.writeFile(downloadPath, response.data);
+
+            console.log("Resource retrieved successfully");
         } catch (error) {
-            console.error("Error in retrieve()", error);
+            this.#error("Error in retrieve()", error);
         }
     }
     
@@ -103,9 +110,8 @@ class DspaceClient {
         try {
             const url = urljoin(this.serverBaseUrl, "/delete", identifier);
             const response = await axios.delete(url);
-            console.log(response.data);
         } catch (error) {
-            console.error("Error in delete()", error.message);
+            this.#error("Error in delete()", error);
         }
     }
     
@@ -115,7 +121,7 @@ class DspaceClient {
             const response = await axios.get(url);
             console.log(response.data);
         } catch (error) {
-            console.error("Error in getUserDirectory()", error.message);
+            console.error("Error in getUserDirectory()", error);
         }
     }
 
@@ -123,7 +129,7 @@ class DspaceClient {
     //filePaths is an array that will collect file paths
     async #getDirectoryStructure(localPath, remotePath, filePaths = []) {
         try {
-            const childrenStructure = await this.generateChildrenStructure(localPath, remotePath, filePaths);
+            const childrenStructure = await this.#generateChildrenStructure(localPath, remotePath, filePaths);
 
             return {
                 id:uuid(),
@@ -133,7 +139,7 @@ class DspaceClient {
                 children: childrenStructure
             };
         } catch (error) {
-            console.error('Error in getDirectoryStructure()', error);
+            this.#error('Error in getDirectoryStructure()', error);
         }
     }
 
@@ -156,7 +162,7 @@ class DspaceClient {
                 };
 
                 if (itemStat.isDirectory()) {
-                    itemRecord.children = await this.generateChildrenStructure(itemPath, currentPath, filePaths);
+                    itemRecord.children = await this.#generateChildrenStructure(itemPath, currentPath, filePaths);
                     itemRecord.size = 0;
                 } else {
                     itemRecord.size = itemStat.size;
@@ -167,19 +173,32 @@ class DspaceClient {
             }
 
             return itemRecords;
-        } catch (err) {
-            console.error('Error generating children structure:', err);
-            throw err;
+        } catch (error) {
+            this.#error('Error generating children structure', error);
         }
     }
 
     #normalizePath(inputPath) {
-        let formattedPath = inputPath.replace(/\//g, '\\');
-        formattedPath = formattedPath.replace(/^\\+|\\+$/g, '');
-        formattedPath = formattedPath.replace(/\\+/g, '\\\\');
-        
+        let formattedPath = inputPath.replace(/^[\/\\]+|[\/\\]+$/g, '');
+    
+        formattedPath = formattedPath.replace(/[\/\\]+/g, '\\\\');
+    
         return formattedPath;
-    } 
+    }
+
+    #error(message, error) {
+        const formattedError = `
+            Message: ${message}
+            Error Name: ${error.name || 'N/A'}
+            Error Message: ${error.message || 'N/A'}
+            Stack Trace: ${error.stack || 'N/A'}
+            Complete Error : ${error}
+        `;
+        
+        console.error(formattedError);
+    }
+    
+     
 }
 
 export default DspaceClient;
@@ -187,21 +206,19 @@ export default DspaceClient;
 //const localPath = 'C:\\Users\\MI\\Desktop\\Dspace\\testing directory\\Christmas_Tree_8_Angel.mp4';
 //const remotePath = "root\\meow\\Christmas_Tree_8_Angel.mp4";
 
-const localPath = '//C://Users//MI\\Desktop\\Dspace\\testing directory/';
-const remotePath = "//meow/bark\\choco/testing directory\\";
+const localPath = 'C:\\Users\\MI\\Desktop\\Dspace\\Dspace\\Dspace 3.0';
+const remotePath = "root\\aalu\\Dspace 3.0";
 
 (async () => {
     try {
         const client = new DspaceClient();
-        //await client.upload(localPath, remotePath);
-        //const structure = await client.getDirectoryStructure(localPath, remotePath);
-        //console.log(JSON.stringify(structure, null, 2));
-        //await client.delete("10dacc91-9ead-4eda-86e1-4efcd8bbad20");
+        await client.upload(localPath, remotePath);
+        //await client.delete("edfe0daa-f5aa-4948-be86-a21e1945d6c2");
         //const p1 = await client.retrieve("10dacc91-9ead-4eda-86e1-4efcd8bbad20");
         //const p2= await client.retrieve("cce4548c-ed21-4f87-b13e-adc7f637ae3d");
         //const p3 = await client.retrieve("1934a78a-f50f-4a82-88a7-7c985653f27e");
         //await Promise.all([p1,p2,p3]);
-        //await client.getUserDirectory("0ac453b6-3e18-4ea2-a3d5-0c2f229c2dd0");
+        //await client.getUserDirectory();
     } catch (err) {
         console.error('Test failed', err);
     }
