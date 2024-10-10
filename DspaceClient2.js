@@ -16,20 +16,19 @@ class DspaceClient {
             //localPath = this.#normalizePath(localPath);
             //remotePath = this.#normalizePath(remotePath);
 
-            console.log("remote",remotePath);
-            console.log("local",localPath);
+            console.log("local",JSON.stringify(localPath));
+            console.log("remote",JSON.stringify(remotePath));
 
             const stat = await fs.stat(localPath);
 
             const prefix = 'root\\';
             if (!remotePath.startsWith(prefix)) {
-                remotePath = prefix + remotePath;
+                remotePath = path.join(prefix,remotePath);
             }
 
             const form = new FormData();
             const url = urljoin(this.serverBaseUrl,"/upload");
 
-            //handling a file upload
             if (stat.isFile()) {
                 const directoryStructure = {
                     id: uuid(),
@@ -44,12 +43,12 @@ class DspaceClient {
                 const fileStream = f.createReadStream(localPath);
                 form.append("files", fileStream, path.basename(localPath));
 
-            }//handling a folder upload
+            }
+            //handling a folder upload
             //need to be modified to handle large files which cause multer issues on backend.
             //solution : we send each file individually with its file record. each record will be recursively inserted into the directory structure hence forming the complete directory structure naturally
             else if (stat.isDirectory()) {
                 let filePaths = [];
-                //we are adding the file paths while generating the directory structure
                 //todo : maybe we can add file identifiers that correspond with the file to differentiate items with the same name at the same path
                 const directoryStructure = await this.#getDirectoryStructure(localPath, remotePath, filePaths);
 
@@ -65,9 +64,7 @@ class DspaceClient {
             const response = await axios.post(url, form, {
                 headers: {
                     ...form.getHeaders()
-                },
-                maxContentLength: Infinity,
-                maxBodyLength: Infinity
+                }
             });
 
             if (!response) {
@@ -115,18 +112,16 @@ class DspaceClient {
         }
     }
     
-    async getUserDirectory(identifier) {
+    async getUserDirectory() {
         try {
-            const url = urljoin(this.serverBaseUrl, "/directory", identifier);
+            const url = urljoin(this.serverBaseUrl, "/directory");
             const response = await axios.get(url);
-            console.log(response.data);
+            console.log(JSON.stringify(response.data,null,3));
         } catch (error) {
-            console.error("Error in getUserDirectory()", error);
+            this.#error("Error in getUserDirectory()", error);
         }
     }
 
-    //directory path is the local absolute path of the target folder
-    //filePaths is an array that will collect file paths
     async #getDirectoryStructure(localPath, remotePath, filePaths = []) {
         try {
             const childrenStructure = await this.#generateChildrenStructure(localPath, remotePath, filePaths);
@@ -212,9 +207,9 @@ const remotePath = "root\\aalu\\Dspace 3.0";
 (async () => {
     try {
         const client = new DspaceClient();
-        await client.upload(localPath, remotePath);
-        //await client.delete("edfe0daa-f5aa-4948-be86-a21e1945d6c2");
-        //const p1 = await client.retrieve("10dacc91-9ead-4eda-86e1-4efcd8bbad20");
+        //await client.upload(localPath, remotePath);
+        //await client.delete("edf55d4f-b308-4e92-9ea0-a4a02373ad8f");
+        await client.retrieve("3da86cb4-e35e-46d5-9acc-45c24c98bb17");
         //const p2= await client.retrieve("cce4548c-ed21-4f87-b13e-adc7f637ae3d");
         //const p3 = await client.retrieve("1934a78a-f50f-4a82-88a7-7c985653f27e");
         //await Promise.all([p1,p2,p3]);
