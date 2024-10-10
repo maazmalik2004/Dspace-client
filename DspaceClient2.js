@@ -13,6 +13,12 @@ class DspaceClient {
 
     async upload(localPath, remotePath) {
         try {
+            localPath = this.normalizePath(localPath);
+            remotePath = this.normalizePath(remotePath);
+
+            console.log("remote",remotePath);
+            console.log("local",localPath);
+
             const stat = await fs.stat(localPath);
 
             const prefix = 'root\\';
@@ -115,7 +121,7 @@ class DspaceClient {
 
     //directory path is the local absolute path of the target folder
     //filePaths is an array that will collect file paths
-    async getDirectoryStructure(localPath, remotePath, filePaths = []) {
+    async #getDirectoryStructure(localPath, remotePath, filePaths = []) {
         try {
             const childrenStructure = await this.generateChildrenStructure(localPath, remotePath, filePaths);
 
@@ -131,7 +137,7 @@ class DspaceClient {
         }
     }
 
-    async generateChildrenStructure(directoryPath, parentPath, filePaths) {
+    async #generateChildrenStructure(directoryPath, parentPath, filePaths) {
         try {
             const items = await fs.readdir(directoryPath);
             const itemRecords = [];
@@ -166,13 +172,23 @@ class DspaceClient {
             throw err;
         }
     }
+
+    #normalizePath(inputPath) {
+        let formattedPath = inputPath.replace(/\//g, '\\');
+        formattedPath = formattedPath.replace(/^\\+|\\+$/g, '');
+        formattedPath = formattedPath.replace(/\\+/g, '\\\\');
+        
+        return formattedPath;
+    } 
 }
+
+export default DspaceClient;
 
 //const localPath = 'C:\\Users\\MI\\Desktop\\Dspace\\testing directory\\Christmas_Tree_8_Angel.mp4';
 //const remotePath = "root\\meow\\Christmas_Tree_8_Angel.mp4";
 
-const localPath = 'C:\\Users\\MI\\Desktop\\Dspace\\testing directory';
-const remotePath = "meow\\bark\\choco\\testing directory";
+const localPath = '//C://Users//MI\\Desktop\\Dspace\\testing directory/';
+const remotePath = "//meow/bark\\choco/testing directory\\";
 
 (async () => {
     try {
@@ -180,9 +196,12 @@ const remotePath = "meow\\bark\\choco\\testing directory";
         //await client.upload(localPath, remotePath);
         //const structure = await client.getDirectoryStructure(localPath, remotePath);
         //console.log(JSON.stringify(structure, null, 2));
-        //await client.delete("fb1f2586-6d16-4ef5-821f-07e897641a48");
-        //await client.retrieve("9dd5ca9a-2281-421f-810d-d75bb7b34a66");
-        await client.getUserDirectory("0ac453b6-3e18-4ea2-a3d5-0c2f229c2dd0");
+        //await client.delete("10dacc91-9ead-4eda-86e1-4efcd8bbad20");
+        //const p1 = await client.retrieve("10dacc91-9ead-4eda-86e1-4efcd8bbad20");
+        //const p2= await client.retrieve("cce4548c-ed21-4f87-b13e-adc7f637ae3d");
+        //const p3 = await client.retrieve("1934a78a-f50f-4a82-88a7-7c985653f27e");
+        //await Promise.all([p1,p2,p3]);
+        //await client.getUserDirectory("0ac453b6-3e18-4ea2-a3d5-0c2f229c2dd0");
     } catch (err) {
         console.error('Test failed', err);
     }
