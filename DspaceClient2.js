@@ -208,8 +208,8 @@ const remotePath = "root\\aalu\\Dspace 3.0";
     try {
         const client = new DspaceClient();
         //await client.upload(localPath, remotePath);
-        //await client.delete("edf55d4f-b308-4e92-9ea0-a4a02373ad8f");
-        await client.retrieve("3da86cb4-e35e-46d5-9acc-45c24c98bb17");
+        await client.delete("209fe837-486e-4b56-9bdd-27ec73d59142");
+        //await client.retrieve("3da86cb4-e35e-46d5-9acc-45c24c98bb17");
         //const p2= await client.retrieve("cce4548c-ed21-4f87-b13e-adc7f637ae3d");
         //const p3 = await client.retrieve("1934a78a-f50f-4a82-88a7-7c985653f27e");
         //await Promise.all([p1,p2,p3]);
