@@ -6,8 +6,10 @@ import axios from 'axios';
 import FormData from 'form-data';
 
 class DspaceClient {
+    #serverBaseUrl
+
     constructor() {
-        this.serverBaseUrl = "http://localhost:5000";
+        this.#serverBaseUrl = "http://localhost:5000";
     }
 
     async upload(localPath, remotePath) {
@@ -22,8 +24,9 @@ class DspaceClient {
 
             const stat = await fs.stat(localPath);
 
+            let netUploadTime = 0;
             if (stat.isFile()) {
-                await this.#uploadFile(localPath, remotePath);
+                netUploadTime = netUploadTime + await this.#uploadFile(localPath, remotePath);
             }else if(stat.isDirectory()) {
                 const filePaths = [];
                 await this.#generateFilePaths(localPath, filePaths);
@@ -31,8 +34,10 @@ class DspaceClient {
                 for (const filePath of filePaths) {
                     const relativePath = path.relative(localPath, filePath);
                     const fileRemotePath = path.join(remotePath, relativePath);
-                    await this.#uploadFile(filePath, fileRemotePath);
+                    netUploadTime = netUploadTime + await this.#uploadFile(filePath, fileRemotePath);
                 }
+
+                console.log("net upload time ",netUploadTime);
             } else {
                 throw new Error("Provided path is neither a file nor a folder");
             }
@@ -61,7 +66,7 @@ class DspaceClient {
             const fileStream = f.createReadStream(filePath);
             form.append("files", fileStream, path.basename(filePath));
 
-            const url = `${this.serverBaseUrl}/upload`;
+            const url = `${this.#serverBaseUrl}/upload`;
             const response = await axios.post(url, form, {
                 headers: {
                     ...form.getHeaders()
@@ -73,6 +78,8 @@ class DspaceClient {
             }
 
             console.log(`Resource uploaded successfully: ${directoryStructure.name}`, response.data);
+
+            if(response.uploadTime)return response.uploadTime;
         } catch (error) {
             this.#error("Error in #uploadFile()", error);
         }
@@ -80,7 +87,7 @@ class DspaceClient {
 
     async retrieve(identifier) {
         try {
-            const url = `${this.serverBaseUrl}/retrieve/${identifier}`;
+            const url = `${this.#serverBaseUrl}/retrieve/${identifier}`;
             const response = await axios.get(url, { responseType: 'arraybuffer' });
 
             const contentDisposition = response.headers['content-disposition'];
@@ -103,7 +110,7 @@ class DspaceClient {
 
     async delete(identifier) {
         try {
-            const url = `${this.serverBaseUrl}/delete/${identifier}`;
+            const url = `${this.#serverBaseUrl}/delete/${identifier}`;
             await axios.delete(url);
         } catch (error) {
             this.#error("Error in delete()", error);
@@ -112,7 +119,7 @@ class DspaceClient {
 
     async getUserDirectory() {
         try {
-            const url = `${this.serverBaseUrl}/directory`;
+            const url = `${this.#serverBaseUrl}/directory`;
             const response = await axios.get(url);
             console.log(JSON.stringify(response.data, null, 3));
         } catch (error) {
@@ -154,11 +161,11 @@ export default DspaceClient;
 //const localPath = 'C:\\Users\\MI\\Desktop\\Dspace\\Dspace\\Dspace 3.0';
 //const remotePath = "root\\aalu\\Dspace 3.0";
 
-//const localPath = "C:\\Users\\MI\\Desktop\\Dspace\\testing directory";
-//const remotePath = "root\\meow\\chow\\testing directory";
+const localPath = "C:\\Users\\MI\\Desktop\\Dspace\\testing directory\\Christmas_Tree_8_Angel.mp4";
+const remotePath = "root\\Christmas_Tree_8_Angel.mp4";
 
-const localPath = "C:\\Users\\MI\\Desktop\\web development";
-const remotePath = "root\\momo\\chow\\web development";
+//const localPath = "C:\\Users\\MI\\Desktop\\web development";
+//const remotePath = "root\\momo\\chow\\web development";
 
 
 //C:\\Users\\MI\\Desktop\\Dspace\\testing directory
@@ -167,8 +174,8 @@ const remotePath = "root\\momo\\chow\\web development";
     try {
         const client = new DspaceClient();
         //await client.upload(localPath, remotePath);
-        //await client.delete("fc6a649f-403c-404e-9446-e1ba791af7ff");
-        await client.retrieve("343d8893-918b-4371-a537-23c57dbfb24e");
+        //await client.delete("343d8893-918b-4371-a537-23c57dbfb24e");
+        await client.retrieve("82cac820-6409-49d3-8b86-7b045be74c15");
         // await client.getUserDirectory();
     } catch (err) {
         console.error('Test failed', err);
