@@ -12,32 +12,41 @@ class DspaceClient {
         this.#serverBaseUrl = "http://localhost:5001";
     }
 
+    #normalizePath(inputPath) {
+        // Remove leading and trailing slashes
+        let normalized = inputPath.replace(/^[/\\]+|[/\\]+$/g, '');
+        // Replace forward slashes with backslashes and ensure proper escaping
+        normalized = normalized.replace(/[/\\]+/g, '\\');
+        return normalized;
+    }
+
     async upload(localPath, remotePath) {
         try {
-            console.log("local", JSON.stringify(localPath));
-            console.log("remote", JSON.stringify(remotePath));
+            const normalizedLocalPath = this.#normalizePath(localPath);
+            const normalizedRemotePath = this.#normalizePath(remotePath);
 
-            const prefix = 'root\\';
-            if (!remotePath.startsWith(prefix)) {
-                remotePath = path.join(prefix, remotePath);
-            }
+            console.log("local", JSON.stringify(normalizedLocalPath));
+            console.log("remote", JSON.stringify(normalizedRemotePath));
 
-            const stat = await fs.stat(localPath);
+            const prefix = 'root';
+            const fullRemotePath = prefix + '\\' + normalizedRemotePath;
+
+            const stat = await fs.stat(normalizedLocalPath);
 
             let netUploadTime = 0;
             if (stat.isFile()) {
-                netUploadTime = netUploadTime + await this.#uploadFile(localPath, remotePath);
-            }else if(stat.isDirectory()) {
+                netUploadTime = netUploadTime + await this.#uploadFile(normalizedLocalPath, fullRemotePath);
+            } else if(stat.isDirectory()) {
                 const filePaths = [];
-                await this.#generateFilePaths(localPath, filePaths);
+                await this.#generateFilePaths(normalizedLocalPath, filePaths);
 
                 for (const filePath of filePaths) {
-                    const relativePath = path.relative(localPath, filePath);
-                    const fileRemotePath = path.join(remotePath, relativePath);
+                    const relativePath = this.#normalizePath(path.relative(normalizedLocalPath, filePath));
+                    const fileRemotePath = this.#normalizePath(path.join(fullRemotePath, relativePath));
                     netUploadTime = netUploadTime + await this.#uploadFile(filePath, fileRemotePath);
                 }
 
-                console.log("net upload time ",netUploadTime);
+                console.log("net upload time ", netUploadTime);
             } else {
                 throw new Error("Provided path is neither a file nor a folder");
             }
@@ -48,23 +57,26 @@ class DspaceClient {
 
     async #uploadFile(filePath, remotePath) {
         try {
-            console.log("local", JSON.stringify(filePath));
-            console.log("remote", JSON.stringify(remotePath));
+            const normalizedLocalPath = this.#normalizePath(filePath);
+            const normalizedRemotePath = this.#normalizePath(remotePath);
 
-            const stat = await fs.stat(filePath);
+            console.log("local", JSON.stringify(normalizedLocalPath));
+            console.log("remote", JSON.stringify(normalizedRemotePath));
+
+            const stat = await fs.stat(normalizedLocalPath);
 
             const directoryStructure = {
                 id: uuid(),
-                name: path.basename(filePath),
+                name: path.basename(normalizedLocalPath),
                 type: "file",
-                path: remotePath,
+                path: normalizedRemotePath,
                 size: stat.size
             };
 
             const form = new FormData();
             form.append("directoryStructure", JSON.stringify(directoryStructure));
-            const fileStream = f.createReadStream(filePath);
-            form.append("files", fileStream, path.basename(filePath));
+            const fileStream = f.createReadStream(normalizedLocalPath);
+            form.append("files", fileStream, path.basename(normalizedLocalPath));
 
             const url = `${this.#serverBaseUrl}/upload`;
             const response = await axios.post(url, form, {
@@ -79,7 +91,7 @@ class DspaceClient {
 
             console.log(`Resource uploaded successfully: ${directoryStructure.name}`, response.data);
 
-            if(response.uploadTime)return response.uploadTime;
+            if(response.uploadTime) return response.uploadTime;
         } catch (error) {
             this.#error("Error in #uploadFile()", error);
         }
@@ -99,12 +111,28 @@ class DspaceClient {
                 }
             }
 
-            const downloadPath = path.join("C:\\Users\\MI\\Desktop\\Dspace\\Dpace client\\downloads", filename);
+            const downloadPath = this.#normalizePath(path.join("c:\\Users\\Maaz Malik\\Downloads", filename));
             await fs.writeFile(downloadPath, response.data);
 
             console.log("Resource retrieved successfully");
         } catch (error) {
             this.#error("Error in retrieve()", error);
+        }
+    }
+
+    async #generateFilePaths(directoryPath, filePaths) {
+        const normalizedDirectoryPath = this.#normalizePath(directoryPath);
+        const items = await fs.readdir(normalizedDirectoryPath);
+
+        for (const itemName of items) {
+            const itemPath = this.#normalizePath(path.join(normalizedDirectoryPath, itemName));
+            const itemStat = await fs.stat(itemPath);
+
+            if (itemStat.isDirectory() && itemName != "node_modules") {
+                await this.#generateFilePaths(itemPath, filePaths);
+            } else if(itemStat.isFile()) {
+                filePaths.push(itemPath);
+            }
         }
     }
 
@@ -114,31 +142,6 @@ class DspaceClient {
             await axios.delete(url);
         } catch (error) {
             this.#error("Error in delete()", error);
-        }
-    }
-
-    async getUserDirectory() {
-        try {
-            const url = `${this.#serverBaseUrl}/directory`;
-            const response = await axios.get(url);
-            console.log(JSON.stringify(response.data, null, 3));
-        } catch (error) {
-            this.#error("Error in getUserDirectory()", error);
-        }
-    }
-
-    async #generateFilePaths(directoryPath, filePaths) {
-        const items = await fs.readdir(directoryPath);
-
-        for (const itemName of items) {
-            const itemPath = path.join(directoryPath, itemName);
-            const itemStat = await fs.stat(itemPath);
-
-            if (itemStat.isDirectory() && itemName != "node_modules") {
-                await this.#generateFilePaths(itemPath, filePaths);
-            }else if(itemStat.isFile()){
-                filePaths.push(itemPath);
-            }
         }
     }
 
@@ -156,28 +159,3 @@ class DspaceClient {
 }
 
 export default DspaceClient;
-
-// Example usage:
-//const localPath = 'C:\\Users\\MI\\Desktop\\Dspace\\Dspace\\Dspace 3.0';
-//const remotePath = "root\\aalu\\Dspace 3.0";
-
-const localPath = "C:\\Users\\Maaz Malik\\Desktop\\Dspace-client\\test.js";
-const remotePath = "root\\test.js";
-
-//const localPath = "C:\\Users\\MI\\Desktop\\web development";
-//const remotePath = "root\\momo\\chow\\web development";
-
-
-//C:\\Users\\MI\\Desktop\\Dspace\\testing directory
-
-(async () => {
-    try {
-        const client = new DspaceClient();
-        await client.upload(localPath, remotePath);
-        //await client.delete("343d8893-918b-4371-a537-23c57dbfb24e");
-        // await client.retrieve("82cac820-6409-49d3-8b86-7b045be74c15");
-        // await client.getUserDirectory();
-    } catch (err) {
-        console.error('Test failed', err);
-    }
-})();
