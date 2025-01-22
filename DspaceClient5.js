@@ -11,7 +11,7 @@ class DspaceClient {
     #serverBaseUrl;
     #defaultDownloadPath;
 
-    constructor(serverUrl = 'http://localhost:5001') {
+    constructor(serverUrl = 'http://localhost:5000') {
         if (!serverUrl) {
             throw new Error('Server URL is required');
         }
@@ -168,6 +168,19 @@ ${operation} Statistics:
             throw error;
         }
     }
+
+    async getUserDirectory() {
+        try {
+            const url = `${this.#serverBaseUrl}/directory`;
+            const response = await axios.get(url);
+            // console.log(JSON.stringify(response.data, null, 3));
+            console.log(response.data)
+            return response.data.userDirectory
+        } catch (error) {
+            this.#error("Error in getUserDirectory()", error);
+        }
+    }
+
 
     async #generateFilePaths(directoryPath, filePaths) {
         const normalizedDirectoryPath = this.#normalizePath(directoryPath);
